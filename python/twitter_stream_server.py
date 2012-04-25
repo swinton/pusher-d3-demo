@@ -3,49 +3,41 @@
 import json
 import os
 import sys
-import signal
 import time
 
 from multiprocessing import Process, Value
 from pprint import pprint
-from threading import Timer
 
-import tweepy
-import tweepy_helpers
+import tweetstream
 
 import pusher
 
-class TweetHandler(object):
-    tweets = None
-    total = 0.0
-    shared_total = None
-    config = None
+def track(total, username, password, *keywords):
+    reconnect_wait = 5 # Wait 5 secs before reconnecting
+    errors = 0
     
-    def __init__(self, config):
-        super(TweetHandler, self).__init__()
-        self.tweets = []
-        self.config = config    
-    
-    def __call__(self, tweet):
-        # Keep the last 10000 tweets
-        self.tweets.append(tweet)
-        self.tweets = self.tweets[-10000:]
+    print >> sys.stderr, "Tracking %s..." % ", ".join(keywords)
+    while errors < 10:
+        try:
+            with tweetstream.FilterStream(username, password, track=keywords) as stream:
+                for tweet in stream:
+                    if "text" in tweet:
+                        # print >> sys.stderr, tweet["text"]
+                        total.value += 1
         
-        self.total = self.total + 1.0
-        self.shared_total.value = self.total
-    
-    def run(self, shared_total):
-        print "Recording filter %s..." % self.config["search_terms"]
-        self.shared_total = shared_total
-        tweepy_helpers.stream("filter", self.config, self)
-        
+        except tweetstream.ConnectionError, e:
+            print >> sys.stderr, e
+            
+            # Increment error count
+            errors += 1
+            
+            # Wait before reconnecting
+            time.sleep(reconnect_wait)
+            
+            # Back off gradually
+            reconnect_wait *= 2
 
-if __name__ == "__main__":
-    # Load config
-    config_path = os.path.dirname(sys.argv[0]) + os.path.sep + "config.json"
-    print "Getting config from %s" % config_path
-    config = json.load(open(config_path, "r"))
-    
+def main(config):
     # Prepare Pusher instance
     pusher.app_id = config["pusher"]["app_id"].encode("ascii")
     pusher.key = config["pusher"]["key"].encode("ascii")
@@ -57,8 +49,8 @@ if __name__ == "__main__":
     total = Value("d", 0.0)
     
     # Tweet handler, to receive/process tweets from stream
-    tweet_handler = TweetHandler(config)    
-    process = Process(target=tweet_handler.run, args=(total,))
+    # tweet_handler = TweetHandler(config)    
+    process = Process(target=track, args=(total, config["twitter_auth"]["username"], config["twitter_auth"]["password"], config["search_terms"]))
     process.start()
     
     last_total = 0.0
@@ -82,3 +74,10 @@ if __name__ == "__main__":
         
         except Exception, e:
             print e
+
+if __name__ == "__main__":
+    # Load config
+    config_path = os.path.dirname(sys.argv[0]) + os.path.sep + "config.json"
+    print >> sys.stderr, "Getting config from %s" % config_path
+    config = json.load(open(config_path, "r"))
+    main(config)

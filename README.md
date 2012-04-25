@@ -8,7 +8,7 @@ Live tracker showing Bieber tweets per second running at http://bieber.nixonmcin
 
 ## Usage
 
-Install the [Tweepy](http://tweepy.github.com/) and [Pusher](https://github.com/pusher/pusher_client_python) libraries with `pip install -r requirements.txt`.
+Install the [Tweetstream](http://pypi.python.org/pypi/tweetstream) and [Pusher](https://github.com/pusher/pusher_client_python) libraries with `pip install -r requirements.txt`.
 
 In the Python folder, copy `config.example.json` to `config.json` and add your API keys from Twitter and Pusher, a from and to email address for server error alerts, and your search terms.
 
